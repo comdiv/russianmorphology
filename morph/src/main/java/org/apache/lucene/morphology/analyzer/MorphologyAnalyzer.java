@@ -52,15 +52,12 @@ public class MorphologyAnalyzer extends Analyzer {
 
         StandardTokenizer src = new StandardTokenizer();
         final PayloadEncoder encoder = new PayloadEncoder() {
-            @Override
             public BytesRef encode(char[] buffer) {
                 final Float payload = Float.valueOf(new String(buffer));
                 System.out.println(payload);
                 final byte[] bytes = PayloadHelper.encodeFloat(payload);
                 return new BytesRef(bytes, 0, bytes.length);
             }
-
-            @Override
             public BytesRef encode(char[] buffer, int offset, int length) {
 
                 final Float payload = Float.valueOf(new String(buffer, offset, length));
