@@ -19,8 +19,10 @@ package org.apache.lucene.morphology.analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.FlagsAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.morphology.LuceneMorphology;
+import org.apache.lucene.morphology.Morphology;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,11 +33,20 @@ public class MorphologyFilter extends TokenFilter {
     private LuceneMorphology luceneMorph;
     private Iterator<String> iterator;
     private State state;
-
+    public static int DEFAULT_PRESERVE_MORPHOLOGY_FLAG = 1<<27;
+    public int preserveMorphologyFlag = DEFAULT_PRESERVE_MORPHOLOGY_FLAG;
+    public boolean usePreserveFlag = false;
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
-
-
+    private final FlagsAttribute flagAtt = addAttribute(FlagsAttribute.class);
+    public MorphologyFilter(TokenStream tokenStream, LuceneMorphology luceneMorph,boolean usePreserveFlag){
+        this(tokenStream,luceneMorph,usePreserveFlag,DEFAULT_PRESERVE_MORPHOLOGY_FLAG);
+    }
+    public MorphologyFilter(TokenStream tokenStream, LuceneMorphology luceneMorph,boolean usePreserveFlag, int preserveMorphologyFlag){
+        this(tokenStream,luceneMorph);
+        this.usePreserveFlag = usePreserveFlag;
+        this.preserveMorphologyFlag = preserveMorphologyFlag;
+    }
     public MorphologyFilter(TokenStream tokenStream, LuceneMorphology luceneMorph) {
         super(tokenStream);
         this.luceneMorph = luceneMorph;
@@ -58,10 +69,30 @@ public class MorphologyFilter extends TokenFilter {
             if (!b) {
                 return false;
             }
+            if(usePreserveFlag) {
+                int flags = flagAtt.getFlags();
+                if (0 != (flags & preserveMorphologyFlag)) {
+                    return true;
+                }
+            }
+
             if (termAtt.length() > 0) {
                 String s = new String(termAtt.buffer(), 0, termAtt.length());
+                boolean restoreFirstCharCase  =false;
+                if(!s.toLowerCase().equals(s) && Character.isUpperCase(s.charAt(0)) ){
+                    restoreFirstCharCase  = true;
+                    s = s.toLowerCase();
+                }
                 if (luceneMorph.checkString(s)) {
                     List<String> forms = luceneMorph.getNormalForms(s);
+                    if(restoreFirstCharCase && !forms.isEmpty()){
+                        int len = forms.size();
+                        for(int i=0;i<len;i++){
+                            String lowercased = forms.get(i);
+                            String restored = Character.toUpperCase( lowercased.charAt(0) ) + lowercased.substring(1);
+                            forms.add(restored);
+                        }
+                    }
                     if (forms.isEmpty()) {
                         continue;
                     } else if (forms.size() == 1) {
